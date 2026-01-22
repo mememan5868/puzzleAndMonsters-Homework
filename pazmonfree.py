@@ -372,105 +372,104 @@ def main():
     running = True
     while running:
         for e in pg.event.get():
+            if e.type == pg.QUIT:
+                running = False
 
-            if party["hp"] > 0:
-                if e.type == pg.QUIT:
-                    running = False
+            elif e.type == pg.MOUSEBUTTONDOWN and e.button == 1:
+                mx, my = e.pos
+                if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
+                    i = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
+                    if 0 <= i < 14:
+                        drag_src = i
+                        drag_elem = field[i]
+                        message = f"{gss.SLOTS[i]} を掴んだ"
 
-                elif e.type == pg.MOUSEBUTTONDOWN and e.button == 1:
+            elif e.type == pg.MOUSEMOTION:
+                mx, my = e.pos
+                if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
+                    hi = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
+                    hover_idx = hi if 0 <= hi < 14 else None
+                else:
+                    hover_idx = None
+
+            elif e.type == pg.MOUSEBUTTONUP and e.button == 1:
+                if drag_src is not None:
                     mx, my = e.pos
-                    if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
-                        i = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
-                        if 0 <= i < 14:
-                            drag_src = i
-                            drag_elem = field[i]
-                            message = f"{gss.SLOTS[i]} を掴んだ"
-
-                elif e.type == pg.MOUSEMOTION:
-                    mx, my = e.pos
-                    if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
-                        hi = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
-                        hover_idx = hi if 0 <= hi < 14 else None
-                    else:
-                        hover_idx = None
-
-                elif e.type == pg.MOUSEBUTTONUP and e.button == 1:
-                    if drag_src is not None:
-                        mx, my = e.pos
-                        j = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
-                        if 0 <= j < 14:
-                            i = drag_src
-                            if i != j:
-                                step = 1 if j > i else -1
-                                k = i
-                                while k != j:
-                                    nxt = k + step
-                                    field[k], field[nxt] = field[nxt], field[k]
-                                    k = nxt
-                                    message = f"{gss.SLOTS[k-step]}↔{gss.SLOTS[k]} を交換"
-                                    screen.fill((22, 22, 28))
-                                    gss.draw_top(screen, enemy, party, font)
-                                    gss.draw_field(
-                                        screen, field, font, hover_idx=None, drag_src=None, drag_elem=None)
-                                    gss.draw_message(screen, message, font)
-                                    pg.display.flip()
-                                    time.sleep(gss.FRAME_DELAY)
-
-                            # 評価ループ
-                            combo = 0
-                            while True:
-                                run = gss.leftmost_run(field)
-                                if not run:
-                                    break
-                                start, L = run
-                                combo += 1
-                                elem = field[start]
-                                if elem == "命":
-                                    heal = gss.jitter(20*(1.5**((L-3)+combo)))
-                                    party["hp"] = min(
-                                        party["max_hp"], party["hp"]+heal)
-                                    message = f"HP +{heal}"
-                                else:
-                                    dmg = gss.party_attack_from_gems(
-                                        elem, L, combo, party, enemy)
-                                    message = f"{elem}攻撃！ {dmg} ダメージ"
-                                gss.collapse_left(field, start, L)
+                    j = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
+                    if 0 <= j < 14:
+                        i = drag_src
+                        if i != j:
+                            step = 1 if j > i else -1
+                            k = i
+                            while k != j:
+                                nxt = k + step
+                                field[k], field[nxt] = field[nxt], field[k]
+                                k = nxt
+                                message = f"{gss.SLOTS[k-step]}↔{gss.SLOTS[k]} を交換"
                                 screen.fill((22, 22, 28))
                                 gss.draw_top(screen, enemy, party, font)
-                                gss.draw_field(screen, field, font)
-                                gss.draw_message(screen, "消滅！", font)
-                                pg.display.flip()
-                                time.sleep(gss.FRAME_DELAY)
-                                gss.fill_random(field)
-                                screen.fill((22, 22, 28))
-                                gss.draw_top(screen, enemy, party, font)
-                                gss.draw_field(screen, field, font)
-                                gss.draw_message(screen, "湧き！", font)
-                                pg.display.flip()
-                                time.sleep(gss.FRAME_DELAY)
-                                if enemy["hp"] <= 0:
-                                    message = f"{enemy['name']} を倒した！"
-                                    break
-
-                            # 敵ターン or 撃破後処理
-                            if enemy["hp"] > 0:
-                                edmg = gss.enemy_attack(party, enemy)
-                                message = f"{enemy['name']}の攻撃！ -{edmg}"
-                                screen.fill((22, 22, 28))
-                                gss.draw_top(screen, enemy, party, font)
-                                gss.draw_field(screen, field, font)
+                                gss.draw_field(
+                                    screen, field, font, hover_idx=None, drag_src=None, drag_elem=None)
                                 gss.draw_message(screen, message, font)
                                 pg.display.flip()
                                 time.sleep(gss.FRAME_DELAY)
 
+                        # 評価ループ
+                        combo = 0
+                        while True:
+                            run = gss.leftmost_run(field)
+                            if not run:
+                                break
+                            start, L = run
+                            combo += 1
+                            elem = field[start]
+                            if elem == "命":
+                                heal = gss.jitter(20*(1.5**((L-3)+combo)))
+                                party["hp"] = min(
+                                    party["max_hp"], party["hp"]+heal)
+                                message = f"HP +{heal}"
                             else:
-                                enemy_idx += 1
-                                if enemy_idx < len(enemies):
-                                    enemy = enemies[enemy_idx]
-                                    field = gss.init_field()
-                                    message = f"さらに奥へ… 次は {enemy['name']}"
-                                else:
-                                    message = "ダンジョン制覇！おめでとう！（ESCで終了）"
+                                dmg = gss.party_attack_from_gems(
+                                    elem, L, combo, party, enemy)
+                                message = f"{elem}攻撃！ {dmg} ダメージ"
+                            gss.collapse_left(field, start, L)
+                            screen.fill((22, 22, 28))
+                            gss.draw_top(screen, enemy, party, font)
+                            gss.draw_field(screen, field, font)
+                            gss.draw_message(screen, "消滅！", font)
+                            pg.display.flip()
+                            time.sleep(gss.FRAME_DELAY)
+                            gss.fill_random(field)
+                            screen.fill((22, 22, 28))
+                            gss.draw_top(screen, enemy, party, font)
+                            gss.draw_field(screen, field, font)
+                            gss.draw_message(screen, "湧き！", font)
+                            pg.display.flip()
+                            time.sleep(gss.FRAME_DELAY)
+                            if enemy["hp"] <= 0:
+                                message = f"{enemy['name']} を倒した！"
+                                break
+
+                        # 敵ターン or 撃破後処理
+                        if enemy["hp"] > 0:
+                            edmg = gss.enemy_attack(party, enemy)
+                            message = f"{enemy['name']}の攻撃！ -{edmg}"
+                            screen.fill((22, 22, 28))
+                            gss.draw_top(screen, enemy, party, font)
+                            gss.draw_field(screen, field, font)
+                            gss.draw_message(screen, message, font)
+                            pg.display.flip()
+                            time.sleep(gss.FRAME_DELAY)
+                            if party["hp"] <= 0:
+                                message = "パーティは力尽きた…（ESCで終了）"
+                        else:
+                            enemy_idx += 1
+                            if enemy_idx < len(enemies):
+                                enemy = enemies[enemy_idx]
+                                field = gss.init_field()
+                                message = f"さらに奥へ… 次は {enemy['name']}"
+                            else:
+                                message = "ダンジョン制覇！おめでとう！（ESCで終了）"
 
                 # ドラッグ終了
                 drag_src = None
@@ -480,18 +479,7 @@ def main():
         # 常時描画
         screen.fill((22, 22, 28))
         gss.draw_top(screen, enemy, party, font)
-
-        if party["hp"] > 0:
-            gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
-            seclet_command = []
-            for i in range(10):
-                key = pg.key.get_pressed()
-                seclet_command.append(key)
-                if len(seclet_command) > 10:
-                    break
-        else:
-            message = "パーティは力尽きた…（ESCで終了）"
-
+        gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
         gss.draw_message(screen, message, font)
         pg.display.flip()
         clock.tick(60)
@@ -499,8 +487,6 @@ def main():
         keys = pg.key.get_pressed()
         if keys[pg.K_ESCAPE]:
             running = False
-        elif keys[pg.K_0]:
-            party["hp"] = -20
 
     pg.quit()
     sys.exit()
