@@ -225,7 +225,8 @@ class GameSystemSettings(SettingsOfPazmon):
                    font,
                    hover_idx: Optional[int] = None,
                    drag_src: Optional[int] = None,
-                   drag_elem: Optional[str] = None
+                   drag_elem: Optional[str] = None,
+                   x=0, y=0
                    ):
         # スロット見出し
         for i, slot in enumerate(self.SLOTS):
@@ -237,6 +238,10 @@ class GameSystemSettings(SettingsOfPazmon):
         for i, _ in enumerate(field):
             rect = self.slot_rect(i)
             base = (35, 35, 40) if hover_idx != i else (60, 60, 80)
+            rect[0] += x / 10
+            rect[2] += x / 10
+            rect[1] += y / 10
+            rect[3] += y / 10
             pg.draw.rect(screen, base, rect, border_radius=8)
 
         # 宝石（ドラッグ開始スロットは空に見せる）
@@ -249,13 +254,14 @@ class GameSystemSettings(SettingsOfPazmon):
             pg.draw.circle(
                 screen,
                 self.COLOR_RGB[elem],
-                (cx, cy),
-                self.SLOT_W // 2-10
+                (cx + x/10, cy + y/10),
+                self.SLOT_W // 3
             )
 
             sym = self.ELEMENT_SYMBOLS[elem]
             s = font.render(sym, True, (0, 0, 0))
-            screen.blit(s, (cx-s.get_width()//2, cy-s.get_height()//2))
+            screen.blit(s, (cx-s.get_width()//2 + x /
+                        10, cy-s.get_height()//2 + y/10))
 
         # ドラッグ中の宝石（ゴースト）をカーソル位置に拡大表示
         if drag_elem is not None:
@@ -264,7 +270,7 @@ class GameSystemSettings(SettingsOfPazmon):
             self.draw_gem_at(
                 screen,
                 drag_elem,
-                mx,
+                mx + x,
                 my-4,
                 scale=self.DRAG_SCALE,
                 with_shadow=True,
@@ -275,7 +281,7 @@ class GameSystemSettings(SettingsOfPazmon):
         # 敵画像/名前
         img = self.load_monster_image(enemy["name"])
         img.set_alpha(alpha)
-        screen.blit(img, (40 + gainX, 40 + gainY))
+        screen.blit(img, (40 + gainX/4.5, 40 + gainY/4.5))
 
         # 敵名とHPバー
         name = font.render(enemy["name"], True, (240, 240, 240))
@@ -528,9 +534,24 @@ def main():
                             if enemy["hp"] > 0:
                                 edmg = gss.enemy_attack(party, enemy)
                                 message = f"{enemy['name']}の攻撃！ -{edmg}"
+                                dev = pid.P_Control(
+                                    0.7, 30, 0) + pid.I_Control(0.2, 30)
+                                while (pid.abs(pid.deviation_P) > 2):
+                                    screen.fill((22, 22, 28))
+                                    x = pid.P_Control(
+                                        0.7, dev, 0) + pid.I_Control(0.2, dev)
+                                    y = pid.P_Control(
+                                        0.7, dev, 0) + pid.I_Control(0.2, dev)
+                                    gss.draw_top(
+                                        screen, enemy, party, font)
+                                    gss.draw_field(
+                                        screen, field, font, None, None, None, x, y)
+                                    pg.display.flip()
+                                    dev = x
                                 screen.fill((22, 22, 28))
                                 gss.draw_top(screen, enemy, party, font)
-                                gss.draw_field(screen, field, font)
+                                gss.draw_field(
+                                    screen, field, font, None, None, None)
                                 gss.draw_message(screen, message, font)
                                 pg.display.flip()
                                 time.sleep(gss.ENEMY_DELAY)
@@ -551,17 +572,15 @@ def main():
 
             if (e.type == pg.KEYDOWN):
                 secret.append(e.key)
-                print(secret)  # debug
-                print(command_list[0])  # debug
+#                print(secret)  # debug
+#                print(command_list[0])  # debug
 
             if (set(command_list[0]) <= set(secret)):
                 party["hp"] = 700
                 secret.clear()
 
             # ドラッグ終了
-        print(secret)  # debug
-        print(command_list[0])  # debug
-        # 常時描画
+       # 常時描画
         screen.fill((22, 22, 28))
         gss.draw_top(screen, enemy, party, font)
         if (party["hp"] > 0):
