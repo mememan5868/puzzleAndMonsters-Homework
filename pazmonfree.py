@@ -271,9 +271,10 @@ class GameSystemSettings(SettingsOfPazmon):
                 font=font
             )
 
-    def draw_top(self, screen, enemy, party, font, gainX=0, gainY=0):
+    def draw_top(self, screen, enemy, party, font, gainX=0, gainY=0, alpha=200):
         # 敵画像/名前
         img = self.load_monster_image(enemy["name"])
+        img.set_alpha(alpha)
         screen.blit(img, (40 + gainX, 40 + gainY))
 
         # 敵名とHPバー
@@ -475,14 +476,20 @@ def main():
                                     pid.PID_INIT()
                                     dev = pid.P_Control(
                                         1.4, 30, 0) + pid.I_Control(0.2, 30)
+                                    cnt = 200
                                     while (pid.abs(pid.deviation_P) > 2):
                                         screen.fill((22, 22, 28))
                                         x = pid.P_Control(
                                             0.7, dev, 0) + pid.I_Control(0.2, dev)
                                         y = pid.P_Control(
                                             0.7, dev, 0) + pid.I_Control(0.2, dev)
-                                        gss.draw_top(
-                                            screen, enemy, party, font, x, y)
+                                        if (enemy["hp"] > 0):
+                                            gss.draw_top(
+                                                screen, enemy, party, font, x, y)
+                                        else:
+                                            gss.draw_top(
+                                                screen, enemy, party, font, x, y, cnt)
+                                            cnt -= 10
                                         gss.draw_field(screen, field, font)
                                         gss.draw_message(screen, "消滅！", font)
                                         pg.display.flip()
@@ -490,21 +497,31 @@ def main():
 
                                 gss.collapse_left(field, start, L)
                                 screen.fill((22, 22, 28))
-                                gss.draw_top(
-                                    screen, enemy, party, font)
+                                if (enemy["hp"] > 0):
+                                    gss.draw_top(
+                                        screen, enemy, party, font)
+                                else:
+                                    gss.draw_top(
+                                        screen, enemy, party, font, 0, 0, 0)
                                 gss.draw_field(screen, field, font)
                                 gss.draw_message(screen, "消滅！", font)
                                 pg.display.flip()
                                 time.sleep(gss.FRAME_DELAY)
                                 gss.fill_random(field)
                                 screen.fill((22, 22, 28))
-                                gss.draw_top(screen, enemy, party, font)
+                                if (enemy["hp"] > 0):
+                                    gss.draw_top(
+                                        screen, enemy, party, font)
+                                else:
+                                    gss.draw_top(
+                                        screen, enemy, party, font, 0, 0, 0)
                                 gss.draw_field(screen, field, font)
                                 gss.draw_message(screen, "湧き！", font)
                                 pg.display.flip()
                                 time.sleep(gss.FRAME_DELAY)
                                 if enemy["hp"] <= 0:
                                     message = f"{enemy['name']} を倒した！"
+
                                     break
 
                             # 敵ターン or 撃破後処理
