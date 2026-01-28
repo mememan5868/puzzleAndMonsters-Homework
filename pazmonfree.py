@@ -1,9 +1,10 @@
-import pygame as pg
-import sys
 import os
 import random
+import sys
 import time
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
+
+import pygame as pg
 
 
 # --------------------SettingsOfPazmon begin.--------------------
@@ -35,8 +36,8 @@ class SettingsOfPazmon:
         self.SLOTS = [chr(ord('A')+i) for i in range(14)]
 
         # その他 可変パラメータ
-        self.FRAME_DELAY = 0.5
-        self.ENEMY_DELAY = 1.0
+        self.FRAME_DELAY = 0.2
+        self.ENEMY_DELAY = 0.3
         self.WIN_W = 980
         self.WIN_H = 720
         self.FIELD_Y = 520
@@ -270,10 +271,10 @@ class GameSystemSettings(SettingsOfPazmon):
                 font=font
             )
 
-    def draw_top(self, screen, enemy, party, font):
+    def draw_top(self, screen, enemy, party, font, gainX=0, gainY=0):
         # 敵画像/名前
         img = self.load_monster_image(enemy["name"])
-        screen.blit(img, (40, 40))
+        screen.blit(img, (40 + gainX, 40 + gainY))
 
         # 敵名とHPバー
         name = font.render(enemy["name"], True, (240, 240, 240))
@@ -325,6 +326,36 @@ class GameSystemSettings(SettingsOfPazmon):
 
 # --------------GameSystemSettings end--------------
 
+# --------------GameAnimation begin ---------------
+class GameAnimation:
+    def __init__(self):
+        self.deviation_P = 0
+        self.deviation_I = 0
+
+    def PID_INIT(self):
+        self.deviation_P = 0
+
+    def P_Control(self, gain, input, objVal) -> int:
+        self.deviation_P = objVal - input
+        return gain * self.deviation_P
+
+    def I_Control(self, gain, input, time=0.1):
+        self.deviation_P += input*time
+        return gain * self.deviation_P
+
+    def D_Control(self):
+        pass
+
+    def PID(self):
+        pass
+
+    def abs(self, value):
+        if (value >= 0):
+            return value
+        elif (value < 0):
+            return value * -1
+
+# --------------GameAnimation end ---------------
 
 # ---------------- メイン ----------------
 
@@ -332,12 +363,14 @@ class GameSystemSettings(SettingsOfPazmon):
 def main():
     pg.init()
     gss = GameSystemSettings()
+    pid = GameAnimation()
     screen = pg.display.set_mode((gss.WIN_W, gss.WIN_H))
     pg.display.set_caption("Puzzle & Monsters - GUI Prototype")
     font = gss.get_jp_font(26)
     secret = []
     command_list = [
-        [pg.K_UP, pg.K_UP, pg.K_DOWN, pg.K_DOWN, pg.K_LEFT, pg.K_RIGHT, pg.K_LEFT, pg.K_RIGHT, pg.K_a, pg.K_b],
+        [1073741906, 1073741906, 1073741905, 1073741905,
+            1073741904, 1073741903, 1073741904, 1073741903, 97, 98],
     ]
     party = {
         "player_name": "Player",
@@ -378,10 +411,10 @@ def main():
     running = True
     while running:
         for e in pg.event.get():
-            if(party["hp"] > 0):
+            if (party["hp"] > 0):
                 if e.type == pg.QUIT:
                     running = False
-                     
+
                 elif e.type == pg.MOUSEBUTTONDOWN and e.button == 1:
                     mx, my = e.pos
                     if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
@@ -390,7 +423,7 @@ def main():
                             drag_src = i
                             drag_elem = field[i]
                             message = f"{gss.SLOTS[i]} を掴んだ"
-         
+
                 elif e.type == pg.MOUSEMOTION:
                     mx, my = e.pos
                     if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
@@ -398,7 +431,7 @@ def main():
                         hover_idx = hi if 0 <= hi < 14 else None
                     else:
                         hover_idx = None
-         
+
                 elif e.type == pg.MOUSEBUTTONUP and e.button == 1:
                     if drag_src is not None:
                         mx, my = e.pos
@@ -420,7 +453,7 @@ def main():
                                     gss.draw_message(screen, message, font)
                                     pg.display.flip()
                                     time.sleep(gss.FRAME_DELAY)
-         
+
                             # 評価ループ
                             combo = 0
                             while True:
@@ -439,9 +472,26 @@ def main():
                                     dmg = gss.party_attack_from_gems(
                                         elem, L, combo, party, enemy)
                                     message = f"{elem}攻撃！ {dmg} ダメージ"
+                                    pid.PID_INIT()
+                                    dev = pid.P_Control(
+                                        1.4, 30, 0) + pid.I_Control(0.2, 30)
+                                    while (pid.abs(pid.deviation_P) > 2):
+                                        screen.fill((22, 22, 28))
+                                        x = pid.P_Control(
+                                            0.7, dev, 0) + pid.I_Control(0.2, dev)
+                                        y = pid.P_Control(
+                                            0.7, dev, 0) + pid.I_Control(0.2, dev)
+                                        gss.draw_top(
+                                            screen, enemy, party, font, x, y)
+                                        gss.draw_field(screen, field, font)
+                                        gss.draw_message(screen, "消滅！", font)
+                                        pg.display.flip()
+                                        dev = x
+
                                 gss.collapse_left(field, start, L)
                                 screen.fill((22, 22, 28))
-                                gss.draw_top(screen, enemy, party, font)
+                                gss.draw_top(
+                                    screen, enemy, party, font)
                                 gss.draw_field(screen, field, font)
                                 gss.draw_message(screen, "消滅！", font)
                                 pg.display.flip()
@@ -456,7 +506,7 @@ def main():
                                 if enemy["hp"] <= 0:
                                     message = f"{enemy['name']} を倒した！"
                                     break
-         
+
                             # 敵ターン or 撃破後処理
                             if enemy["hp"] > 0:
                                 edmg = gss.enemy_attack(party, enemy)
@@ -466,7 +516,7 @@ def main():
                                 gss.draw_field(screen, field, font)
                                 gss.draw_message(screen, message, font)
                                 pg.display.flip()
-                                time.sleep(gss.FRAME_DELAY)
+                                time.sleep(gss.ENEMY_DELAY)
                                 if party["hp"] <= 0:
                                     message = "パーティは力尽きた…（ESCで終了）"
                             else:
@@ -482,19 +532,25 @@ def main():
                     drag_elem = None
                     hover_idx = None
 
-            if(e.type == pg.KEYDOWN):
+            if (e.type == pg.KEYDOWN):
                 secret.append(e.key)
+                print(secret)  # debug
+                print(command_list[0])  # debug
 
-                
-                # ドラッグ終了
-                        
+            if (set(command_list[0]) <= set(secret)):
+                party["hp"] = 700
+                secret.clear()
+
+            # ドラッグ終了
+        print(secret)  # debug
+        print(command_list[0])  # debug
         # 常時描画
         screen.fill((22, 22, 28))
         gss.draw_top(screen, enemy, party, font)
         if (party["hp"] > 0):
             gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
 
-        else:         
+        else:
             field = gss.death_field()
             message = "パーティは力尽きた…（ESCで終了）"
             gss.draw_field(screen, field, font)
@@ -504,7 +560,7 @@ def main():
         clock.tick(60)
 
         keys = pg.key.get_pressed()
-        if len(secret) > 32:
+        if len(secret) > 16:
             secret.clear()
 
         if keys[pg.K_ESCAPE]:
@@ -512,8 +568,6 @@ def main():
         elif keys[pg.K_0]:
             party["hp"] = 0
 
-        if(command_list[0] in secret):
-            party["hp"] = 0
     pg.quit()
     sys.exit()
 
