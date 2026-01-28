@@ -335,7 +335,10 @@ def main():
     screen = pg.display.set_mode((gss.WIN_W, gss.WIN_H))
     pg.display.set_caption("Puzzle & Monsters - GUI Prototype")
     font = gss.get_jp_font(26)
-
+    secret = []
+    command_list = [
+        [pg.K_UP, pg.K_UP, pg.K_DOWN, pg.K_DOWN, pg.K_LEFT, pg.K_RIGHT, pg.K_LEFT, pg.K_RIGHT, pg.K_a, pg.K_b],
+    ]
     party = {
         "player_name": "Player",
         "allies": [
@@ -475,30 +478,42 @@ def main():
                                 else:
                                     message = "ダンジョン制覇！おめでとう！（ESCで終了）"
 
-                # ドラッグ終了
                     drag_src = None
                     drag_elem = None
                     hover_idx = None
 
+            if(e.type == pg.KEYDOWN):
+                secret.append(e.key)
+
+                
+                # ドラッグ終了
+                        
         # 常時描画
         screen.fill((22, 22, 28))
         gss.draw_top(screen, enemy, party, font)
         if (party["hp"] > 0):
             gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
+
         else:         
             field = gss.death_field()
             message = "パーティは力尽きた…（ESCで終了）"
             gss.draw_field(screen, field, font)
+
         gss.draw_message(screen, message, font)
         pg.display.flip()
         clock.tick(60)
 
         keys = pg.key.get_pressed()
+        if len(secret) > 32:
+            secret.clear()
+
         if keys[pg.K_ESCAPE]:
             running = False
         elif keys[pg.K_0]:
             party["hp"] = 0
 
+        if(command_list[0] in secret):
+            party["hp"] = 0
     pg.quit()
     sys.exit()
 
