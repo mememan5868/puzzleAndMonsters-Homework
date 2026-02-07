@@ -239,9 +239,9 @@ class GameSystemSettings(SettingsOfPazmon):
             rect = self.slot_rect(i)
             base = (35, 35, 40) if hover_idx != i else (60, 60, 80)
             rect[0] += x / 10
-            rect[2] += x / 10
+            rect[2] += x / -10
             rect[1] += y / 10
-            rect[3] += y / 10
+            rect[3] += y / -10
             pg.draw.rect(screen, base, rect, border_radius=8)
 
         # 宝石（ドラッグ開始スロットは空に見せる）
@@ -250,6 +250,7 @@ class GameSystemSettings(SettingsOfPazmon):
                 continue
             rect = self.slot_rect(i)
             cx, cy = rect.center
+            print(type(drag_src))
 
             pg.draw.circle(
                 screen,
@@ -281,7 +282,7 @@ class GameSystemSettings(SettingsOfPazmon):
         # 敵画像/名前
         img = self.load_monster_image(enemy["name"])
         img.set_alpha(alpha)
-        screen.blit(img, (40 + gainX/4.5, 40 + gainY/4.5))
+        screen.blit(img, (40 + gainX/3.5, 40 + gainY/4.5))
 
         # 敵名とHPバー
         name = font.render(enemy["name"], True, (240, 240, 240))
@@ -333,7 +334,23 @@ class GameSystemSettings(SettingsOfPazmon):
 
 # --------------GameSystemSettings end--------------
 
+# --------------GameItemSettings begin--------------
+class Item:
+    def __init__(self, item_num):
+        self.number_of_item = item_num
+
+    def draw_item_surface(self, screen, font):
+        text = font.render("あ", False, (255, 255, 240))
+        for i in range(self.number_of_item):
+            pg.draw.rect(screen, (100, 85, 105),
+                         (900 - (55 * i), 300, 50, 50))
+            screen.blit(text, (900 - (55 * i), 300))
+
+# --------------GameItemSettings end--------------
+
 # --------------GameAnimation begin ---------------
+
+
 class GameAnimation:
     def __init__(self):
         self.deviation_P = 0
@@ -374,6 +391,7 @@ def main():
     screen = pg.display.set_mode((gss.WIN_W, gss.WIN_H))
     pg.display.set_caption("Puzzle & Monsters - GUI Prototype")
     font = gss.get_jp_font(26)
+    item = Item(4)
     secret = []
     command_list = [
         [1073741906, 1073741906, 1073741905, 1073741905,
@@ -433,11 +451,22 @@ def main():
 
                 elif e.type == pg.MOUSEMOTION:
                     mx, my = e.pos
-                    if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
-                        hi = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
-                        hover_idx = hi if 0 <= hi < 14 else None
-                    else:
-                        hover_idx = None
+                    # if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
+                    hi = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
+                    hy = (gss.SLOT_W+gss.SLOT_PAD)
+                    hover_idx = hi if 0 <= hi < 14 else None
+                    nowPosX = max(0, min(len(field)-1, hi))
+                    if (drag_src is not None):
+
+                        posX = drag_src
+                        if (hover_idx is not None and hover_idx != drag_src and hy > abs(my - gss.FIELD_Y)):
+
+                            if (nowPosX - posX <= 1):
+                                field[nowPosX], field[posX] = field[posX], field[nowPosX]
+                                drag_src = hi
+
+                            # else:
+                            # hover_idx = None
 
                 elif e.type == pg.MOUSEBUTTONUP and e.button == 1:
                     if drag_src is not None:
@@ -471,7 +500,8 @@ def main():
                                 combo += 1
                                 elem = field[start]
                                 if elem == "命":
-                                    heal = gss.jitter(20*(1.5**((L-3)+combo)))
+                                    heal = gss.jitter(
+                                        22.5*(1.4**((L-3)+combo)))
                                     party["hp"] = min(
                                         party["max_hp"], party["hp"]+heal)
                                     message = f"HP +{heal}"
@@ -491,10 +521,10 @@ def main():
                                             0.7, dev, 0) + pid.I_Control(0.2, dev)
                                         if (enemy["hp"] > 0):
                                             gss.draw_top(
-                                                screen, enemy, party, font, x, y)
+                                                screen, enemy, party, font, x, 0)
                                         else:
                                             gss.draw_top(
-                                                screen, enemy, party, font, x, y, cnt)
+                                                screen, enemy, party, font, x, 0, cnt)
                                             cnt -= 10
                                         gss.draw_field(screen, field, font)
                                         gss.draw_message(screen, "消滅！", font)
@@ -583,9 +613,10 @@ def main():
        # 常時描画
         screen.fill((22, 22, 28))
         gss.draw_top(screen, enemy, party, font)
+
         if (party["hp"] > 0):
             gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
-
+            item.draw_item_surface(screen, font)
         else:
             field = gss.death_field()
             message = "パーティは力尽きた…（ESCで終了）"
