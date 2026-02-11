@@ -48,7 +48,7 @@ class SettingsOfPazmon:
     # ---------------- フォント解決 ----------------
 
     def get_jp_font(self, size: int) -> pg.font.Font:
-        bundle = os.path.join("assets", "fonts", "NotoSansJP-Regular.ttf")
+        bundle = os.path.join("assets", "fonts", "misaki_mincho.ttf")
         if os.path.exists(bundle):
             return pg.font.Font(bundle, size)
         candidates = [
@@ -398,17 +398,30 @@ class Item:
     def __init__(self, item_num):
         self.number_of_item = item_num
 
-    def draw_item_surface(self, screen, font, txt: list):
+    def draw_item_surface(self, screen, font, txt: str):
+        img = None
         for i in range(self.number_of_item):
-            text = font.render("A", False, (255, 255, 240))
-            pg.draw.rect(screen, (100, 85, 105),
-                         (900 - (55 * i), 650, 50, 50))
-            screen.blit(text, (900 - (55 * i), 650))
+            match(i):
+                case 0:
+                    img = pg.image.load("assets/items/PowerPow.png")
+                    img = pg.transform.scale(img, (50, 50))
+                case 1:
+                    img = pg.image.load("assets/items/Revival.png")
+                    img = pg.transform.scale(img, (50, 50))
+                case 2:
+                    img = pg.image.load("assets/items/Heal.png")
+                    img = pg.transform.scale(img, (50, 50))
+                case 3:
+                    img = pg.image.load("assets/items/kimagure.png")
+                    img = pg.transform.scale(img, (50, 50))
+            text = font.render(txt[i+1], False, (255, 255, 240))
+            screen.blit(img, ((980/4)*(i), 650))
+            screen.blit(text, ((980/4)*(i)+54, 650))
 
     def clickedItem(self, eventType, num, func=lambda: print("AAA")):
         x, y = pg.mouse.get_pos()
         if (eventType.type == pg.MOUSEBUTTONUP):
-            if ((900 - (55 * num) <= x and 900 - (55 * num)+50 >= x) and 650 <= y and 700 >= y):
+            if ((980/4)*(num) <= x and (980/4)*(num)+50 >= x and 650 <= y and 700 >= y):
                 func()
 
 
@@ -455,10 +468,10 @@ class Skill:
                  skill_name: str,
                  need_sp: int,
                  dmg=None,  # 火:タプル、風・水:リスト
-                 debuff_ratio: float = None,
-                 debuff_turns: int = None,
-                 stun_turns: int = None,
-                 heal: int = None):
+                 debuff_ratio: float=None,
+                 debuff_turns: int=None,
+                 stun_turns: int=None,
+                 heal: int=None):
         self.skill_name = skill_name
         self.need_sp = need_sp
         self.dmg = dmg
@@ -496,7 +509,10 @@ class Skill:
 
     def _calc_heal(self, party):  # 回復
         if self.heal is not None:
-            party["hp"] = min(party["max_hp"], party["hp"]+self.heal)
+            if (party["hp"] <= party["max_hp"]/2):
+                party["hp"] = min(party["max_hp"], party["hp"]+self.heal)
+            else:
+                party["hp"] = min(party["max_hp"], party["hp"]+5)
             return self.heal
 
     def _apply_debuff(self, enemy):  # デバフ
@@ -522,9 +538,11 @@ def main():
     pid = GameAnimation()
     screen = pg.display.set_mode((gss.WIN_W, gss.WIN_H))
     pg.display.set_caption("Puzzle & Monsters - GUI Prototype")
-    font = gss.get_jp_font(26)
+    font = gss.get_jp_font(30)
     titleFont = gss.get_jp_font(73)
     weakFont = gss.get_jp_font(17)
+    clearFont = gss.get_jp_font(40)
+
     item = Item(4)
     secret = []
     command_list = [
@@ -532,16 +550,39 @@ def main():
             1073741904, 1073741903, 1073741904, 1073741903, 97, 98],
     ]
 
-    itemList = ["力の粉", "お守り", "薬草", "きまぐれ石"]
-
-
 # スキルインスタンス生成
-    skill_wind = Skill("青龍のスキル", 10, [20, 50], stun_turns=3)
+    skill_wind = Skill("青龍のスキル", 30, [20, 50], stun_turns=3)
     skill_fire = Skill("朱雀のスキル", 10, (30, 0.1))
-    skill_earth = Skill("白虎のスキル", 10, heal=50)
+    skill_earth = Skill("白虎のスキル", 40, heal=30)
     skill_water = Skill(
-        "玄武のスキル", 10, [20, 50], debuff_ratio=0.5, debuff_turns=3)
+        "玄武のスキル", 30, [20, 50], debuff_ratio=0.5, debuff_turns=3)
 
+    itemList = {
+            "name": {
+                1: "力の粉",
+                2: "お守り",
+                3: "薬草",
+                4: "気まぐれ石"
+            },
+            "type": {
+                1: "ATK",
+                2: "RBRTH",
+                3: "LIFE",
+                4: "SHUFFLE"
+            },
+            "max_hold": {
+                1: 3,
+                2: 1,
+                3: 5,
+                4: 50,
+            },
+            "value": {
+                1: 10,
+                2: 1000,
+                3: 5,
+                4: 4
+            }
+    }
     party = {
         "player_name": "Player",
         "allies": [
@@ -580,16 +621,16 @@ def main():
     message = "ドラッグで A..N の宝石を移動（例：A→F）"
     clock = pg.time.Clock()
     gameStarting = False
+    gameClear = False
 
     running = True
     while running:
         for e in pg.event.get():
+            if e.type == pg.QUIT:
+                running = False
 
-            if (party["hp"] > 0 and gameStarting == True):
-                if e.type == pg.QUIT:
-                    running = False
-
-                elif e.type == pg.MOUSEBUTTONDOWN and e.button == 1:
+            if (party["hp"] > 0 and gameStarting == True and enemy_idx < len(enemies) and gameClear == False):
+                if e.type == pg.MOUSEBUTTONDOWN and e.button == 1:
                     mx, my = e.pos
                     if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
                         i = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
@@ -669,10 +710,17 @@ def main():
 
                                                 pg.display.flip()
                                                 dev = x
-
-                                        # 敵が倒れたかチェック
-                                        if enemy["hp"] <= 0:
-                                            message = f"{enemy['name']} を倒した！"
+                                            enemy_idx += 1
+                                            if enemy_idx < len(enemies):
+                                                enemy = enemies[enemy_idx]
+                                                field = gss.init_field()
+                                                message = f"さらに奥へ… 次は {enemy['name']}"
+                                            else:
+                                                drag_src = None
+                                                drag_elem = None
+                                                hover_idx = None
+                                                gameClear = True
+                                                break
                 elif e.type == pg.MOUSEMOTION:
                     mx, my = e.pos
                     hi = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
@@ -737,7 +785,7 @@ def main():
                                             ally["sp"] = min(
                                             ally["sp"], ally["skill"].need_sp)
 
-  
+
                                     pid.PID_INIT()
                                     dev = pid.P_Control(
                                         1.4, 30, 0) + pid.I_Control(0.2, 30)
@@ -852,20 +900,25 @@ def main():
                             else:
                                 enemy_idx += 1
                                 if enemy_idx < len(enemies):
+
                                     enemy = enemies[enemy_idx]
                                     field = gss.init_field()
                                     message = f"さらに奥へ… 次は {enemy['name']}"
                                 else:
-                                    message = "ダンジョン制覇！おめでとう！（ESCで終了）"
-
+                                    drag_src = None
+                                    drag_elem = None
+                                    hover_idx = None
+                                    gameClear = True
+                                    break
                     drag_src = None
                     drag_elem = None
                     hover_idx = None
+            else:
+                screen.fill((22, 22, 28))
+
 
             if (e.type == pg.KEYDOWN):
                 secret.append(e.key)
-# print(secret)  # debug
-# print(command_list[0])  # debug
 
             if (set(command_list[0]) <= set(secret)):
                 party["hp"] = 700
@@ -873,17 +926,24 @@ def main():
 
             # ドラッグ終了
     # 常時描画
-        if (party["hp"] > 0 and gameStarting == True):
+        if (party["hp"] > 0 and gameStarting == True and gameClear == False):
             screen.fill((22, 22, 28))
             gss.draw_top(screen, enemy, party, font, weakFont)
             gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
-            item.draw_item_surface(screen, font, itemList)
+            item.draw_item_surface(screen, font, itemList["name"])
+
+            item.clickedItem(e, 0)
             item.clickedItem(e, 1)
+            item.clickedItem(e, 2)
+            item.clickedItem(e, 3)
             gss.draw_message(screen, message, font)
-        elif (party["hp"] <= 0 and gameStarting == True):
+        elif (party["hp"] <= 0 and gameStarting == True and gameClear == False):
+            pass
+        elif (gameStarting == True and gameClear == True):
             screen.fill((0, 0, 0))
-            message = "パーティは力尽きた…（ESCで終了）"
-            gss.draw_message(screen, message, font, 300, 360)
+            message = "ダンジョン制覇！おめでとう！（ESCで終了）"
+            gss.draw_message(screen, message, clearFont, 75, 260)
+
         else:
             screen.fill((0, 0, 0))
             messag = "Puzzle AND Monsters"
@@ -900,7 +960,7 @@ def main():
         if keys[pg.K_ESCAPE]:
             running = False
         elif keys[pg.K_0]:
-            party["hp"] = 0
+            party["hp"] = 300
 
         elif (keys[pg.K_SPACE]):
             gameStarting = True
