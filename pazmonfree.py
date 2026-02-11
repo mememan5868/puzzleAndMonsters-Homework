@@ -82,16 +82,34 @@ class SettingsOfPazmon:
         surf.fill((60, 60, 60, 200))
         return surf
 
-
 # --------------------SettingsOfPazmon end.--------------------
 
 # --------------GameSystemSettings begin--------------
+
+
 class GameSystemSettings(SettingsOfPazmon):
 
     def __init__(self):
         super().__init__()
 
+    def sp_bar_surf(self, sp: int, need_sp: int, color: Tuple, w: int, h: int) -> pg.Surface:
+        ratio = max(0, min(1, sp / need_sp if need_sp > 0 else 0))
+        bar_w = w
+        fill_w = int(bar_w * ratio)
+        # バー描画
+        surf = pg.Surface((w, h), pg.SRCALPHA)
+        # 背景（透明）
+        bg = pg.Surface((bar_w, h), pg.SRCALPHA)
+        bg.fill((0, 0, 0, 120))
+        surf.blit(bg, (0, 0))
+        # 黄色バー
+        fg = pg.Surface((fill_w, h), pg.SRCALPHA)
+        fg.fill(color)
+        surf.blit(fg, (0, 0))
+        return surf
+
     # ---------------- HPバー ----------------
+
     def hp_bar_surf(self, current: int, max_hp: int, w: int, h: int) -> pg.Surface:
         """HPバー（max600基準でスケーリング）"""
         # HP比（0〜1）
@@ -250,7 +268,6 @@ class GameSystemSettings(SettingsOfPazmon):
                 continue
             rect = self.slot_rect(i)
             cx, cy = rect.center
-            print(type(drag_src))
 
             pg.draw.circle(
                 screen,
@@ -278,14 +295,22 @@ class GameSystemSettings(SettingsOfPazmon):
                 font=font
             )
 
-    def draw_top(self, screen, enemy, party, font, gainX=0, gainY=0, alpha=200):
+    def draw_top(self, screen, enemy, party, font, weakFont=None, gainX=0, gainY=0, alpha=200):
+
+        weakElementList = {
+            '火': '水',
+            '水': '土',
+            '土': '風',
+            '風': '火',
+        }
         # 敵画像/名前
         img = self.load_monster_image(enemy["name"])
         img.set_alpha(alpha)
         screen.blit(img, (40 + gainX/3.5, 40 + gainY/4.5))
 
         # 敵名とHPバー
-        name = font.render(enemy["name"], True, (240, 240, 240))
+        name = font.render(
+            enemy["name"], True, (240, 240, 240))
         screen.blit(name, (320, 40))
 
         enemy_bar = self.hp_bar_surf(
@@ -294,8 +319,11 @@ class GameSystemSettings(SettingsOfPazmon):
             420,
             18
         )
-
         screen.blit(enemy_bar, (320, 80))
+        if (weakFont is not None):
+            weak = weakFont.render(
+                f'[属性: {enemy["element"]} < {self.ELEMENT_SYMBOLS[enemy["element"]]} >   弱点: {weakElementList[enemy["element"]]} < {self.ELEMENT_SYMBOLS[weakElementList[enemy["element"]]]} >]', True, (143, 133, 233))
+            screen.blit(weak, (635, 60))
 
         # 敵HP数値（バー右側に）
         enemy_hp_text = font.render(
@@ -327,9 +355,40 @@ class GameSystemSettings(SettingsOfPazmon):
         )
         screen.blit(party_hp_text, (750, 138))
 
-    def draw_message(self, screen, text, font):
+        for (i, ally) in enumerate(party["allies"]):
+            if "skill" in ally and "sp" in ally:
+
+                # 1. 色は「常に」属性色を使う（これで誰のスキルか分かる！）
+                ally_color = self.COLOR_RGB[ally["element"]]
+
+                # 2. バーを描画 (中身は属性色)
+                sp_bar = self.sp_bar_surf(
+                    ally["sp"],
+                    ally["skill"].need_sp,
+                    ally_color,
+                    300, 12,
+                )
+                y = 250 + i * 50
+                screen.blit(sp_bar, (520, y))
+
+                # 満タンなら「金色の枠」を描く
+                if ally["sp"] >= ally["skill"].need_sp:
+                    frame_rect = pg.Rect(520, y, 300, 12)
+                    pg.draw.rect(screen, (255, 215, 0), frame_rect, 3)
+                    ok_text = weakFont.render("OK!", True, (255, 215, 0))
+                    screen.blit(ok_text, (830, y - 5))
+                else:
+                    # 満タンじゃない時はふつうの数値
+                    sp_text = font.render(
+                        f"{int(ally['sp'])}/{ally['skill'].need_sp}",
+                        True,
+                        (240, 240, 240)
+                    )
+                    screen.blit(sp_text, (830, y - 2))
+
+    def draw_message(self, screen, text, font, x=40, y=460):
         surf = font.render(text, True, (230, 230, 230))
-        screen.blit(surf, (40, 460))
+        screen.blit(surf, (x, y))
 
 
 # --------------GameSystemSettings end--------------
@@ -339,12 +398,19 @@ class Item:
     def __init__(self, item_num):
         self.number_of_item = item_num
 
-    def draw_item_surface(self, screen, font):
-        text = font.render("あ", False, (255, 255, 240))
+    def draw_item_surface(self, screen, font, txt: list):
         for i in range(self.number_of_item):
+            text = font.render("A", False, (255, 255, 240))
             pg.draw.rect(screen, (100, 85, 105),
-                         (900 - (55 * i), 300, 50, 50))
-            screen.blit(text, (900 - (55 * i), 300))
+                         (900 - (55 * i), 650, 50, 50))
+            screen.blit(text, (900 - (55 * i), 650))
+
+    def clickedItem(self, eventType, num, func=lambda: print("AAA")):
+        x, y = pg.mouse.get_pos()
+        if (eventType.type == pg.MOUSEBUTTONUP):
+            if ((900 - (55 * num) <= x and 900 - (55 * num)+50 >= x) and 650 <= y and 700 >= y):
+                func()
+
 
 # --------------GameItemSettings end--------------
 
@@ -381,6 +447,72 @@ class GameAnimation:
 
 # --------------GameAnimation end ---------------
 
+# ---------------- SkillSettings Begin ----------------
+
+
+class Skill:
+    def __init__(self,
+                 skill_name: str,
+                 need_sp: int,
+                 dmg=None,  # 火:タプル、風・水:リスト
+                 debuff_ratio: float = None,
+                 debuff_turns: int = None,
+                 stun_turns: int = None,
+                 heal: int = None):
+        self.skill_name = skill_name
+        self.need_sp = need_sp
+        self.dmg = dmg
+        self.debuff_ratio = debuff_ratio
+        self.debuff_turns = debuff_turns
+        self.stun_turns = stun_turns
+        self.heal = heal
+
+    def execute(self, party, enemy):  # スキルのメイン処理
+        message = []
+        message.append(f"【{self.skill_name}】")
+        dmg = self._calc_damage(enemy)
+        if dmg is not None:
+            message.append(f"{dmg}ダメージ！")
+        heal = self._calc_heal(party)
+        if heal is not None:
+            message.append(f"{heal}回復！")
+        debuff_res = self._apply_debuff(enemy)
+        if debuff_res is not None:
+            message.append(f"{enemy['name']}の攻撃力を{debuff_res}ダウン！")
+        stun_res = self._apply_stun(enemy)
+        if stun_res is not None:
+            message.append(f"{enemy['name']}を{stun_res}ターンスタン！")
+        return " ".join(message)
+
+    def _calc_damage(self, enemy):  # ダメージ
+        if type(self.dmg) == tuple:
+            skill_dmg = int(self.dmg[0]+enemy["hp"]*self.dmg[1])
+            enemy["hp"] = max(0, enemy["hp"]-skill_dmg)
+            return skill_dmg
+        if type(self.dmg) == list:
+            skill_dmg = int(random.randint(self.dmg[0], self.dmg[1]))
+            enemy["hp"] = max(0, enemy["hp"]-skill_dmg)
+            return skill_dmg
+
+    def _calc_heal(self, party):  # 回復
+        if self.heal is not None:
+            party["hp"] = min(party["max_hp"], party["hp"]+self.heal)
+            return self.heal
+
+    def _apply_debuff(self, enemy):  # デバフ
+        if self.debuff_ratio is not None and self.debuff_turns is not None:
+            enemy["status"] = {"type": "atk_down",
+                               "turn": self.debuff_turns, "val": self.debuff_ratio}
+            return enemy["ap"]-enemy["ap"]*self.debuff_ratio
+
+    def _apply_stun(self, enemy):  # スタン
+        if self.stun_turns is not None and self.stun_turns is not 0:
+            enemy["status"] = {"type": "stun", "turn": self.stun_turns}
+            return self.stun_turns
+
+
+# ---------------- SkillSettings end ----------------
+
 # ---------------- メイン ----------------
 
 
@@ -391,38 +523,53 @@ def main():
     screen = pg.display.set_mode((gss.WIN_W, gss.WIN_H))
     pg.display.set_caption("Puzzle & Monsters - GUI Prototype")
     font = gss.get_jp_font(26)
+    titleFont = gss.get_jp_font(73)
+    weakFont = gss.get_jp_font(17)
     item = Item(4)
     secret = []
     command_list = [
         [1073741906, 1073741906, 1073741905, 1073741905,
             1073741904, 1073741903, 1073741904, 1073741903, 97, 98],
     ]
+
+    itemList = ["力の粉", "お守り", "薬草", "きまぐれ石"]
+
+
+# スキルインスタンス生成
+    skill_wind = Skill("青龍のスキル", 10, [20, 50], stun_turns=3)
+    skill_fire = Skill("朱雀のスキル", 10, (30, 0.1))
+    skill_earth = Skill("白虎のスキル", 10, heal=50)
+    skill_water = Skill(
+        "玄武のスキル", 10, [20, 50], debuff_ratio=0.5, debuff_turns=3)
+
     party = {
         "player_name": "Player",
         "allies": [
             {"name": "青龍", "element": "風", "hp": 150,
-                "max_hp": 150, "ap": 15, "dp": 10},
+             "max_hp": 150, "ap": 15, "dp": 10, "skill": skill_wind, "sp": 0},
             {"name": "朱雀", "element": "火", "hp": 150,
-                "max_hp": 150, "ap": 25, "dp": 10},
+             "max_hp": 150, "ap": 25, "dp": 10, "skill": skill_fire, "sp": 0},
             {"name": "白虎", "element": "土", "hp": 150,
-                "max_hp": 150, "ap": 20, "dp": 5},
+             "max_hp": 150, "ap": 20, "dp": 5, "skill": skill_earth, "sp": 0},
             {"name": "玄武", "element": "水", "hp": 150,
-                "max_hp": 150, "ap": 20, "dp": 15},
+             "max_hp": 150, "ap": 20, "dp": 15, "skill": skill_water, "sp": 0},
         ],
         "hp": 600, "max_hp": 600, "dp": (10+10+5+15)/4
     }
+
     enemies = [
         {"name": "スライム", "element": "水", "hp": 100,
-            "max_hp": 100, "ap": 10, "dp": 1},
+         "max_hp": 100, "ap": 10, "dp": 1, "status": {"type": None, "turn": 0, "val": None}},
         {"name": "ゴブリン", "element": "土", "hp": 200,
-            "max_hp": 200, "ap": 20, "dp": 5},
+         "max_hp": 200, "ap": 20, "dp": 5, "status": {"type": None, "turn": 0, "val": None}},
         {"name": "オオコウモリ", "element": "風", "hp": 300,
-            "max_hp": 300, "ap": 30, "dp": 10},
+         "max_hp": 300, "ap": 30, "dp": 10, "status": {"type": None, "turn": 0, "val": None}},
         {"name": "ウェアウルフ", "element": "風", "hp": 400,
-            "max_hp": 400, "ap": 40, "dp": 15},
+         "max_hp": 400, "ap": 40, "dp": 15, "status": {"type": None, "turn": 0, "val": None}},
         {"name": "ドラゴン", "element": "火", "hp": 600,
-            "max_hp": 600, "ap": 50, "dp": 20},
+         "max_hp": 600, "ap": 50, "dp": 20, "status": {"type": None, "turn": 0, "val": None}},
     ]
+
     enemy_idx = 0
     enemy = enemies[enemy_idx]
     field = gss.init_field()
@@ -431,12 +578,14 @@ def main():
     drag_elem: Optional[str] = None
     hover_idx: Optional[int] = None
     message = "ドラッグで A..N の宝石を移動（例：A→F）"
-
     clock = pg.time.Clock()
+    gameStarting = False
+
     running = True
     while running:
         for e in pg.event.get():
-            if (party["hp"] > 0):
+
+            if (party["hp"] > 0 and gameStarting == True):
                 if e.type == pg.QUIT:
                     running = False
 
@@ -448,10 +597,84 @@ def main():
                             drag_src = i
                             drag_elem = field[i]
                             message = f"{gss.SLOTS[i]} を掴んだ"
+                    else:
+                        for i, ally in enumerate(party["allies"]):
+                            if "skill" in ally:
+                                # 当たり判定を作る (draw_topの座標計算と同じにする)
+                                bar_y = 250 + i * 50
+                                bar_rect = pg.Rect(520, bar_y, 300, 40)
+                                # クリックした場所がバーの中か
+                                if bar_rect.collidepoint(mx, my):
+                                    skill = ally["skill"]
 
+                                    # SP確認
+                                    if ally["sp"] >= skill.need_sp:
+                                        # 発動
+                                        skill_res = skill.execute(party, enemy)
+                                        ally["sp"] -= skill.need_sp
+                                        message = skill_res
+
+                                        # 攻撃スキルなら画面を揺らす
+                                        if skill.dmg is not None:
+                                            # PID（敵の攻撃の時と同じ設定）
+                                            pid.PID_INIT()
+                                            dev = pid.P_Control(
+                                                1.4, 30, 0) + pid.I_Control(0.2, 30)
+
+                                            # 揺れが収まるまでループ
+                                            while (pid.abs(pid.deviation_P) > 2):
+                                                screen.fill((22, 22, 28))
+
+                                                # 揺れ幅を計算
+                                                x = pid.P_Control(
+                                                    0.7, dev, 0) + pid.I_Control(0.2, dev)
+                                                y = pid.P_Control(
+                                                    0.7, dev, 0) + pid.I_Control(0.2, dev)
+
+                                                gss.draw_top(
+                                                    screen, enemy, party, font, weakFont, x, y)
+                                                gss.draw_field(
+                                                    screen, field, font, None, None, None, 0, 0)
+
+                                                gss.draw_message(
+                                                    screen, message, font)
+
+                                                pg.display.flip()
+                                                dev = x
+
+                                        # 敵が倒れたかチェック
+                                        if enemy["hp"] <= 0:
+                                            pid.PID_INIT()
+
+                                            dev = pid.P_Control(
+                                                1.4, 30, 0) + pid.I_Control(0.2, 30)
+
+                                            # 揺れが収まるまでループ
+                                            while (pid.abs(pid.deviation_P) > 2):
+                                                screen.fill((22, 22, 28))
+
+                                                # 揺れ幅を計算
+                                                x = pid.P_Control(
+                                                    0.7, dev, 0) + pid.I_Control(0.2, dev)
+                                                y = pid.P_Control(
+                                                    0.7, dev, 0) + pid.I_Control(0.2, dev)
+
+                                                gss.draw_top(
+                                                    screen, enemy, party, font, weakFont, x, y)
+                                                gss.draw_field(
+                                                    screen, field, font, None, None, None, 0, 0)
+
+                                                gss.draw_message(
+                                                    screen, message, font)
+
+                                                pg.display.flip()
+                                                dev = x
+
+                                        # 敵が倒れたかチェック
+                                        if enemy["hp"] <= 0:
+                                            message = f"{enemy['name']} を倒した！"
                 elif e.type == pg.MOUSEMOTION:
                     mx, my = e.pos
-                    # if gss.FIELD_Y <= my <= gss.FIELD_Y+gss.SLOT_W:
                     hi = (mx-gss.LEFT_MARGIN)//(gss.SLOT_W+gss.SLOT_PAD)
                     hy = (gss.SLOT_W+gss.SLOT_PAD)
                     hover_idx = hi if 0 <= hi < 14 else None
@@ -464,9 +687,6 @@ def main():
                             if (nowPosX - posX <= 1):
                                 field[nowPosX], field[posX] = field[posX], field[nowPosX]
                                 drag_src = hi
-
-                            # else:
-                            # hover_idx = None
 
                 elif e.type == pg.MOUSEBUTTONUP and e.button == 1:
                     if drag_src is not None:
@@ -483,7 +703,8 @@ def main():
                                     k = nxt
                                     message = f"{gss.SLOTS[k-step]}↔{gss.SLOTS[k]} を交換"
                                     screen.fill((22, 22, 28))
-                                    gss.draw_top(screen, enemy, party, font)
+                                    gss.draw_top(
+                                        screen, enemy, party, font, weakFont)
                                     gss.draw_field(
                                         screen, field, font, hover_idx=None, drag_src=None, drag_elem=None)
                                     gss.draw_message(screen, message, font)
@@ -509,6 +730,14 @@ def main():
                                     dmg = gss.party_attack_from_gems(
                                         elem, L, combo, party, enemy)
                                     message = f"{elem}攻撃！ {dmg} ダメージ"
+                                                                       # 攻撃した味方の属性について、宝石を消した分だけその属性のspをためる
+                                    for ally in party["allies"]:
+                                        if ally["element"] == elem:
+                                            ally["sp"] += L
+                                            ally["sp"] = min(
+                                            ally["sp"], ally["skill"].need_sp)
+
+  
                                     pid.PID_INIT()
                                     dev = pid.P_Control(
                                         1.4, 30, 0) + pid.I_Control(0.2, 30)
@@ -521,10 +750,10 @@ def main():
                                             0.7, dev, 0) + pid.I_Control(0.2, dev)
                                         if (enemy["hp"] > 0):
                                             gss.draw_top(
-                                                screen, enemy, party, font, x, 0)
+                                                screen, enemy, party, font, weakFont, x, 0)
                                         else:
                                             gss.draw_top(
-                                                screen, enemy, party, font, x, 0, cnt)
+                                                screen, enemy, party, font, weakFont, x, 0, cnt)
                                             cnt -= 10
                                         gss.draw_field(screen, field, font)
                                         gss.draw_message(screen, "消滅！", font)
@@ -535,10 +764,10 @@ def main():
                                 screen.fill((22, 22, 28))
                                 if (enemy["hp"] > 0):
                                     gss.draw_top(
-                                        screen, enemy, party, font)
+                                        screen, enemy, party, font, weakFont)
                                 else:
                                     gss.draw_top(
-                                        screen, enemy, party, font, 0, 0, 0)
+                                        screen, enemy, party, font, weakFont, 0, 0, 0)
                                 gss.draw_field(screen, field, font)
                                 gss.draw_message(screen, "消滅！", font)
                                 pg.display.flip()
@@ -547,10 +776,10 @@ def main():
                                 screen.fill((22, 22, 28))
                                 if (enemy["hp"] > 0):
                                     gss.draw_top(
-                                        screen, enemy, party, font)
+                                        screen, enemy, party, font, weakFont)
                                 else:
                                     gss.draw_top(
-                                        screen, enemy, party, font, 0, 0, 0)
+                                        screen, enemy, party, font, weakFont, 0, 0, 0)
                                 gss.draw_field(screen, field, font)
                                 gss.draw_message(screen, "湧き！", font)
                                 pg.display.flip()
@@ -562,10 +791,34 @@ def main():
 
                             # 敵ターン or 撃破後処理
                             if enemy["hp"] > 0:
-                                edmg = gss.enemy_attack(party, enemy)
-                                message = f"{enemy['name']}の攻撃！ -{edmg}"
-                                dev = pid.P_Control(
-                                    0.7, 30, 0) + pid.I_Control(0.2, 30)
+
+                                # 準備
+                                status = enemy["status"]
+                                act_type = "normal"
+
+                                # 行動パターン決定
+                                if status["type"] == "atk_down":
+                                    act_type = "weak_atk"
+                                if status["type"] == "stun":
+                                    act_type = "stun"
+
+                                # 実行
+                                edmg = 0
+                                if act_type == "normal":
+                                    base_dmg = gss.enemy_attack(party, enemy)
+                                    edmg = base_dmg
+                                    message = f"{enemy['name']}の攻撃！ -{edmg}"
+                                if act_type == "atk_down":
+                                    base_dmg = gss.enemy_attack(party, enemy)
+                                    edmg = int(base_dmg*status["val"])
+                                    diff = base_dmg - edmg
+                                    party["hp"] += diff
+                                    message = f"{enemy['name']}の攻撃(弱)！ -{edmg}(残り{status['turn']}ターン)"
+                                if act_type == "stun":
+                                    message = f"{enemy['name']}は動けない！残り{status['turn']}ターン"
+                                if act_type != "stun":
+                                    dev = pid.P_Control(
+                                        0.7, 30, 0) + pid.I_Control(0.2, 30)
                                 while (pid.abs(pid.deviation_P) > 2):
                                     screen.fill((22, 22, 28))
                                     x = pid.P_Control(
@@ -573,18 +826,27 @@ def main():
                                     y = pid.P_Control(
                                         0.7, dev, 0) + pid.I_Control(0.2, dev)
                                     gss.draw_top(
-                                        screen, enemy, party, font)
+                                        screen, enemy, party, font, weakFont)
                                     gss.draw_field(
                                         screen, field, font, None, None, None, x, y)
                                     pg.display.flip()
                                     dev = x
                                 screen.fill((22, 22, 28))
-                                gss.draw_top(screen, enemy, party, font)
+                                gss.draw_top(screen, enemy, party,
+                                             font, weakFont)
                                 gss.draw_field(
                                     screen, field, font, None, None, None)
                                 gss.draw_message(screen, message, font)
                                 pg.display.flip()
                                 time.sleep(gss.ENEMY_DELAY)
+
+                                # ターン処理
+                                if status["turn"] is not None and status["turn"] > 0:
+                                    status["turn"] -= 1
+                                    if status["turn"] == 0:
+                                        status["type"] = None
+                                        status["val"] = None
+
                                 if party["hp"] <= 0:
                                     message = "パーティは力尽きた…（ESCで終了）"
                             else:
@@ -602,27 +864,32 @@ def main():
 
             if (e.type == pg.KEYDOWN):
                 secret.append(e.key)
-#                print(secret)  # debug
-#                print(command_list[0])  # debug
+# print(secret)  # debug
+# print(command_list[0])  # debug
 
             if (set(command_list[0]) <= set(secret)):
                 party["hp"] = 700
                 secret.clear()
 
             # ドラッグ終了
-       # 常時描画
-        screen.fill((22, 22, 28))
-        gss.draw_top(screen, enemy, party, font)
-
-        if (party["hp"] > 0):
+    # 常時描画
+        if (party["hp"] > 0 and gameStarting == True):
+            screen.fill((22, 22, 28))
+            gss.draw_top(screen, enemy, party, font, weakFont)
             gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
-            item.draw_item_surface(screen, font)
-        else:
-            field = gss.death_field()
+            item.draw_item_surface(screen, font, itemList)
+            item.clickedItem(e, 1)
+            gss.draw_message(screen, message, font)
+        elif (party["hp"] <= 0 and gameStarting == True):
+            screen.fill((0, 0, 0))
             message = "パーティは力尽きた…（ESCで終了）"
-            gss.draw_field(screen, field, font)
-
-        gss.draw_message(screen, message, font)
+            gss.draw_message(screen, message, font, 300, 360)
+        else:
+            screen.fill((0, 0, 0))
+            messag = "Puzzle AND Monsters"
+            gss.draw_message(screen, messag, titleFont, 110, 260)
+            msg = "（spaceでスタート）"
+            gss.draw_message(screen, msg, weakFont, 600, 360)
         pg.display.flip()
         clock.tick(60)
 
@@ -634,6 +901,9 @@ def main():
             running = False
         elif keys[pg.K_0]:
             party["hp"] = 0
+
+        elif (keys[pg.K_SPACE]):
+            gameStarting = True
 
     pg.quit()
     sys.exit()
