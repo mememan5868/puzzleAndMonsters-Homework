@@ -398,7 +398,7 @@ class Item:
     def __init__(self, item_num):
         self.number_of_item = item_num
 
-    def draw_item_surface(self, screen, font, txt: str):
+    def draw_item_surface(self, screen, font, txt: str, kosuu: int):
         img = None
         for i in range(self.number_of_item):
             match(i):
@@ -414,15 +414,20 @@ class Item:
                 case 3:
                     img = pg.image.load("assets/items/kimagure.png")
                     img = pg.transform.scale(img, (50, 50))
-            text = font.render(txt[i+1], False, (255, 255, 240))
+            text = font.render(f"{txt[i+1]}x{kosuu[i+1]}", False, (255, 255, 240))
             screen.blit(img, ((980/4)*(i), 650))
             screen.blit(text, ((980/4)*(i)+54, 650))
 
     def clickedItem(self, eventType, num, func=lambda: print("AAA")):
         x, y = pg.mouse.get_pos()
-        if (eventType.type == pg.MOUSEBUTTONUP):
+        if (eventType.type == pg.MOUSEBUTTONDOWN):
             if ((980/4)*(num) <= x and (980/4)*(num)+50 >= x and 650 <= y and 700 >= y):
-                func()
+                return True
+        else:
+            CLICKED = False
+        return False
+
+
 
 
 # --------------GameItemSettings end--------------
@@ -486,15 +491,19 @@ class Skill:
         dmg = self._calc_damage(enemy)
         if dmg is not None:
             message.append(f"{dmg}ダメージ！")
+
         heal = self._calc_heal(party)
         if heal is not None:
             message.append(f"{heal}回復！")
+
         debuff_res = self._apply_debuff(enemy)
         if debuff_res is not None:
             message.append(f"{enemy['name']}の攻撃力を{debuff_res}ダウン！")
+
         stun_res = self._apply_stun(enemy)
         if stun_res is not None:
             message.append(f"{enemy['name']}を{stun_res}ターンスタン！")
+
         return " ".join(message)
 
     def _calc_damage(self, enemy):  # ダメージ
@@ -551,11 +560,10 @@ def main():
     ]
 
 # スキルインスタンス生成
-    skill_wind = Skill("青龍のスキル", 30, [20, 50], stun_turns=3)
-    skill_fire = Skill("朱雀のスキル", 10, (30, 0.1))
-    skill_earth = Skill("白虎のスキル", 40, heal=30)
-    skill_water = Skill(
-        "玄武のスキル", 30, [20, 50], debuff_ratio=0.5, debuff_turns=3)
+    skill_wind = Skill("Rising Minus Potencial", 30, [20, 50], stun_turns=3)
+    skill_fire = Skill("Flame of Pursing Curce", 10, (30, 0.1))
+    skill_earth = Skill("Angel Kiss", 40, heal=30)
+    skill_water = Skill("Making Stop In Forever Ice", 30, [20, 50], debuff_ratio=0.5, debuff_turns=3)
 
     itemList = {
             "name": {
@@ -574,7 +582,7 @@ def main():
                 1: 3,
                 2: 1,
                 3: 5,
-                4: 50,
+                4: 3,
             },
             "value": {
                 1: 10,
@@ -622,6 +630,14 @@ def main():
     clock = pg.time.Clock()
     gameStarting = False
     gameClear = False
+
+    sFlag = False
+    leaflag = False
+    powflag = False
+    guardFlag = False
+
+    GUARD = False
+    pow = False
 
     running = True
     while running:
@@ -683,6 +699,7 @@ def main():
                                                 pg.display.flip()
                                                 dev = x
 
+                                            time.sleep(gss.FRAME_DELAY)
                                         # 敵が倒れたかチェック
                                         if enemy["hp"] <= 0:
                                             pid.PID_INIT()
@@ -777,6 +794,9 @@ def main():
                                 else:
                                     dmg = gss.party_attack_from_gems(
                                         elem, L, combo, party, enemy)
+                                    if(pow is True):
+                                        dmg = dmg * 1.5
+                                        pow = False
                                     message = f"{elem}攻撃！ {dmg} ダメージ"
                                                                        # 攻撃した味方の属性について、宝石を消した分だけその属性のspをためる
                                     for ally in party["allies"]:
@@ -853,9 +873,14 @@ def main():
                                 # 実行
                                 edmg = 0
                                 if act_type == "normal":
-                                    base_dmg = gss.enemy_attack(party, enemy)
-                                    edmg = base_dmg
-                                    message = f"{enemy['name']}の攻撃！ -{edmg}"
+                                    if(GUARD == False):
+                                        base_dmg = gss.enemy_attack(party, enemy)
+                                        edmg = base_dmg
+                                        message = f"{enemy['name']}の攻撃！ -{edmg}"
+                                    else:
+                                        base_dmg = 0
+                                        message = "お守りの効果でガードした！"
+                                        GUARD = False
                                 if act_type == "atk_down":
                                     base_dmg = gss.enemy_attack(party, enemy)
                                     edmg = int(base_dmg*status["val"])
@@ -930,13 +955,66 @@ def main():
             screen.fill((22, 22, 28))
             gss.draw_top(screen, enemy, party, font, weakFont)
             gss.draw_field(screen, field, font, hover_idx, drag_src, drag_elem)
-            item.draw_item_surface(screen, font, itemList["name"])
+            item.draw_item_surface(screen, font, itemList["name"], itemList["max_hold"])
 
-            item.clickedItem(e, 0)
-            item.clickedItem(e, 1)
-            item.clickedItem(e, 2)
-            item.clickedItem(e, 3)
-            gss.draw_message(screen, message, font)
+            powflag = item.clickedItem(e, 0)
+            guardFlag = item.clickedItem(e, 1)
+            leaflag =  item.clickedItem(e, 2)
+            sFlag = item.clickedItem(e, 3)
+            if(powflag == True):
+                if(itemList["max_hold"][1] > 0):
+                    gss.draw_message(screen, "力の粉を使った。", font)
+                    pg.display.flip()
+                    itemList["max_hold"][1] -= 1
+                    time.sleep(gss.FRAME_DELAY)
+                    pow = True
+                    powflag = False
+                else:
+                    gss.draw_message(screen, "アイテムはもうない...", font)
+                    pg.display.flip()
+                    time.sleep(gss.FRAME_DELAY)
+
+            elif(guardFlag == True):
+                if(itemList["max_hold"][2] > 0):
+                    gss.draw_message(screen, "お守りを使った。", font)
+                    pg.display.flip()
+                    itemList["max_hold"][2] -= 1
+                    time.sleep(gss.FRAME_DELAY)
+                    GUARD = True
+                    guardFlag = False
+                else:
+                    gss.draw_message(screen, "アイテムはもうない...", font)
+                    pg.display.flip()
+                    time.sleep(gss.FRAME_DELAY)
+
+            elif(leaflag == True):
+                if(itemList["max_hold"][3] > 0):
+                    gss.draw_message(screen, "薬草を使った。", font)
+                    pg.display.flip()
+                    itemList["max_hold"][3] -= 1
+                    time.sleep(gss.FRAME_DELAY)
+                    if(party["hp"] < 500):
+                        party["hp"] += 25
+                    leaflag = False
+                else:
+                    gss.draw_message(screen, "アイテムはもうない...", font)
+                    pg.display.flip()
+                    time.sleep(gss.FRAME_DELAY)
+
+            elif(sFlag == True):
+                if(itemList["max_hold"][4] > 0):
+                    gss.draw_message(screen, "気まぐれ石を使った。", font)
+                    pg.display.flip()
+                    itemList["max_hold"][4] -= 1
+                    time.sleep(gss.FRAME_DELAY)
+                    s = random.choice([1,2,3,4])
+                    itemList["max_hold"][s] += 1
+                    sFlag == False
+                else:
+                    gss.draw_message(screen, "アイテムはもうない...", font)
+                    pg.display.flip()
+                    time.sleep(gss.FRAME_DELAY)
+
         elif (party["hp"] <= 0 and gameStarting == True and gameClear == False):
             pass
         elif (gameStarting == True and gameClear == True):
@@ -952,7 +1030,7 @@ def main():
             gss.draw_message(screen, msg, weakFont, 600, 360)
         pg.display.flip()
         clock.tick(60)
-
+        print(pow)
         keys = pg.key.get_pressed()
         if len(secret) > 16:
             secret.clear()
